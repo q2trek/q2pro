@@ -115,6 +115,46 @@ static inline size_t Com_ConfigstringSize(const cs_remap_t *csr, int cs)
     return MAX_QPATH;
 }
 
+/*
+World clock contract (rational frame time).
+
+The world runs at an integer rate R Hz with a constant step of 1/R s; the
+game sees that step, never a rounded one. Times derived from frame numbers
+are whole milliseconds relative to an epoch anchor (map/serverdata/rebase):
+
+  T(n) = floor(n * 1000 / R)   time of frame n (client timeline)
+  D(n) = ceil(n * 1000 / R)    deadline of the n-th step (scheduling)
+  N(t) = ceil(t * R / 1000)    smallest n with T(n) >= t (inverse of T;
+                               floor(t * R / 1000) would map T(1) = 16 at
+                               60 Hz back to frame 0)
+
+Each projection is off by less than 1 ms and a whole second is exact, so
+nothing drifts; constant 16 ms / 33 ms periods are not used for 60/30 Hz.
+The server scheduler keeps a credit of elapsed_ms * R units and spends
+FRAME_CREDIT units per step. Products are 64-bit.
+
+Real-time clocks keep their own milliseconds and are advanced once per
+external frame, not per world step: svs.realtime, com_eventTime,
+com_localTime, ping, timeouts, rate limits, usercmd msec and the command
+allowance (1.6 s). Demo/MVD keep the 10 Hz base (BASE_FRAMETIME).
+*/
+#define FRAME_CREDIT    1000
+
+static inline int64_t Com_FloorDiv(int64_t a, int64_t b)
+{
+    return a / b - (a % b < 0);
+}
+
+static inline int64_t Com_FrameTime(int64_t n, int rate)
+{
+    return Com_FloorDiv(n * 1000, rate);
+}
+
+static inline int64_t Com_FrameForTime(int64_t t, int rate)
+{
+    return -Com_FloorDiv(-t * rate, 1000);
+}
+
 #if USE_FPS
 typedef struct {
     int         time;      // variable server frame time

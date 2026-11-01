@@ -1911,6 +1911,25 @@ static unsigned SV_FrameBudget(void)
 }
 
 /*
+World steps one SV_Frame call may run. A listen server built with variable
+FPS catches up owed steps in batches of at most 5 per call, inside the
+error boundary of Qcommon_Frame; dedicated servers and fixed FPS builds
+keep one step per call.
+
+Slow callers: the batch keeps real speed while calls come at least every
+~83 ms (5 steps at 60 Hz). A throttled host (a hidden window, for example)
+calls every 100 ms or slower; Qcommon_Frame turns > 250 ms into 100 ms and
+more than 250 ms owed after a batch becomes 100 ms, so a throttled host
+runs slower than real time and the debt when it speeds up again is
+bounded and caught up within a few calls. There is no second loop or worker.
+*/
+#if USE_CLIENT && USE_FPS
+#define SV_BATCH_STEPS  (COM_DEDICATED ? 1 : 5)
+#else
+#define SV_BATCH_STEPS  1
+#endif
+
+/*
 ==================
 SV_Frame
 
@@ -1922,6 +1941,13 @@ Returns amount of extra frametime available for sleeping on IO.
 */
 unsigned SV_Frame(unsigned msec)
 {
+#if USE_CLIENT && USE_FPS
+    // command boundary of a batch: the buffer size before packets
+    size_t cmdsize = cmd_buffer.cursize;
+#endif
+    bool run;
+    int steps;
+
 #if USE_CLIENT
     time_before_game = time_after_game = 0;
 #endif
@@ -1960,38 +1986,54 @@ unsigned SV_Frame(unsigned msec)
         return SV_FrameBudget();
     }
 
-    if (svs.initialized && !check_paused()) {
-        // check timeouts
-        SV_CheckTimeouts();
+    for (steps = 0; steps < SV_BATCH_STEPS && sv.framecredit >= FRAME_CREDIT; steps++) {
+#if USE_CLIENT && USE_FPS
+        // text queued during this call (packet, game) runs before the next step:
+        // stop the batch, Cbuf_Execute after SV_Frame runs it, the debt carries
+        if (!COM_DEDICATED && cmd_buffer.cursize != cmdsize)
+            break;
+#endif
 
-        // update ping based on the last known frame from all clients
-        SV_CalcPings();
+        run = svs.initialized && !check_paused();
+        if (run) {
+            // check timeouts
+            SV_CheckTimeouts();
 
-        // give the clients some timeslices
-        SV_GiveMsec();
+            // update ping based on the last known frame from all clients
+            SV_CalcPings();
 
-        // let everything in the world think and move
-        SV_RunGameFrame();
+            // give the clients some timeslices
+            SV_GiveMsec();
 
-        // send messages back to the UDP clients
-        SV_SendClientMessages();
+            // let everything in the world think and move
+            SV_RunGameFrame();
 
-        // send a heartbeat to the master if needed
-        SV_MasterHeartbeat();
+            // send messages back to the UDP clients
+            SV_SendClientMessages();
 
-        // clear teleport flags, etc for next frame
-        SV_PrepWorldFrame();
+            // send a heartbeat to the master if needed
+            SV_MasterHeartbeat();
 
-        // advance for next frame
-        sv.framenum++;
+            // clear teleport flags, etc for next frame
+            SV_PrepWorldFrame();
+
+            // advance for next frame
+            sv.framenum++;
+        }
+
+        if (COM_DEDICATED) {
+            // run cmd buffer in dedicated mode
+            Cbuf_Frame(&cmd_buffer);
+        }
+
+        sv.framecredit -= FRAME_CREDIT;
+#if USE_CLIENT && USE_FPS
+        // paused or idle time is not banked as debt for a burst after resume
+        if (!run && !COM_DEDICATED) {
+            sv.framecredit %= FRAME_CREDIT;
+        }
+#endif
     }
-
-    if (COM_DEDICATED) {
-        // run cmd buffer in dedicated mode
-        Cbuf_Frame(&cmd_buffer);
-    }
-
-    sv.framecredit -= FRAME_CREDIT;
 
     // decide how long to sleep next frame
     if (sv.framecredit < FRAME_CREDIT) {

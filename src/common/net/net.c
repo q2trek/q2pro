@@ -67,7 +67,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 #if USE_CLIENT
 
+// one batch of a variable FPS listen server: up to 5 world sends plus
+// async/control messages before the next read; fixed FPS keeps 4. A power of
+// two (index mask); larger bursts drop the oldest messages.
+#if USE_FPS
+#define MAX_LOOPBACK    8
+#else
 #define MAX_LOOPBACK    4
+#endif
 
 typedef struct {
     byte        data[MAX_PACKETLEN];

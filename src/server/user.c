@@ -1520,6 +1520,13 @@ static void set_client_fps(int value)
 
     framediv = Q_clip(value / BASE_FRAMERATE, 1, MAX_FRAMEDIV);
     framediv = sv.frametime.div / Q_gcd(sv.frametime.div, framediv);
+
+    // a client without CLS_EXACTFPS keeps an integer period in ms: lower
+    // 30/60 Hz to the largest such divisor of the server rate
+    if (!sv_client->exactfps)
+        while ((BASE_FRAMETIME * framediv) % sv.frametime.div || sv.frametime.div % framediv)
+            framediv++;
+
     framerate = sv.framerate / framediv;
 
     Com_DDPrintf("[%d] client div=%d, server div=%d, rate=%d\n",
@@ -1547,6 +1554,20 @@ static void SV_ParseClientSetting(void)
     value = MSG_ReadShort();
 
     Com_DDPrintf("%s(%s): [%d] = %d\n", __func__, sv_client->name, idx, value);
+
+#if USE_FPS
+    if (idx == CLS_EXACTFPS) {
+        if (value != 1 || sv_client->protocol != PROTOCOL_VERSION_Q2PRO)
+            return;
+        sv_client->exactfps = true;
+        // precedes the SVS_FPS of the CLS_FPS that follows in this packet
+        MSG_WriteByte(svc_setting);
+        MSG_WriteLong(SVS_EXACTFPS);
+        MSG_WriteLong(1);
+        SV_ClientAddMessage(sv_client, MSG_RELIABLE | MSG_CLEAR);
+        return;
+    }
+#endif
 
     if (idx < 0 || idx >= CLS_MAX)
         return;

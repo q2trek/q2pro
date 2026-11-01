@@ -244,6 +244,10 @@ static void CL_UpdateRateSetting(void)
         return;
     }
 
+    // capability first: the server answers SVS_EXACTFPS before SVS_FPS
+    MSG_WriteByte(clc_setting);
+    MSG_WriteShort(CLS_EXACTFPS);
+    MSG_WriteShort(1);
     MSG_WriteByte(clc_setting);
     MSG_WriteShort(CLS_FPS);
     MSG_WriteShort(cl_updaterate->integer);

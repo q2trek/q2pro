@@ -383,11 +383,27 @@ void CL_DeltaFrame(void)
     if (framenum < 0)
         Com_Error(ERR_DROP, "%s: server time went backwards", __func__);
 
-    if (framenum > INT_MAX / CL_FRAMETIME)
-        Com_Error(ERR_DROP, "%s: server time overflowed", __func__);
+#if USE_FPS
+    if (cl.frametime_exact) {
+        // T(n) of the agreed rate, see utils.h
+        int rate = cl.frametime.div * BASE_FRAMERATE;
+        int64_t t = Com_FrameTime(framenum, rate);
 
-    cl.servertime = framenum * CL_FRAMETIME;
-    cl.prevservertime = cl.servertime - CL_FRAMETIME;
+        if (t > INT_MAX)
+            Com_Error(ERR_DROP, "%s: server time overflowed", __func__);
+
+        cl.servertime = t;
+        cl.prevservertime = Com_FrameTime(framenum - 1, rate);
+        cl.frametime_inv = 1.0f / (cl.servertime - cl.prevservertime);
+    } else
+#endif
+    {
+        if (framenum > INT_MAX / CL_FRAMETIME)
+            Com_Error(ERR_DROP, "%s: server time overflowed", __func__);
+
+        cl.servertime = framenum * CL_FRAMETIME;
+        cl.prevservertime = cl.servertime - CL_FRAMETIME;
+    }
 #if USE_FPS
     cl.keyservertime = (framenum / cl.frametime.div) * BASE_FRAMETIME;
 #endif

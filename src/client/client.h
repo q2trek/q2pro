@@ -272,6 +272,8 @@ typedef struct {
 #if USE_FPS
     frametime_t frametime;
     float       frametime_inv;  // 1/frametime
+    bool        frametime_exact;    // rational timeline (utils.h) agreed with
+                                    // the server; legacy integer period if not
 #endif
 
     configstring_t  baseconfigstrings[MAX_CONFIGSTRINGS];

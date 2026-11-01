@@ -1226,11 +1226,21 @@ static void CL_ParseZPacket(void)
 static void set_server_fps(int value)
 {
     cl.frametime = Com_ComputeFrametime(value);
-    cl.frametime_inv = cl.frametime.div * BASE_1_FRAMETIME;
-    cl.prevservertime = cl.servertime - cl.frametime.time;
+    // exact: the next CL_DeltaFrame sets the reciprocal of its own period;
+    // legacy: the new period applies at once, as upstream
+    if (!cl.frametime_exact) {
+        cl.frametime_inv = cl.frametime.div * BASE_1_FRAMETIME;
+        cl.prevservertime = cl.servertime - cl.frametime.time;
+    }
 
     // fix time delta
-    if (cls.state == ca_active) {
+    if (cls.state == ca_active && cl.frametime_exact) {
+        // the next frame lands after cl.servertime, within one keyframe
+        // interval: the first frame time past it, delta rounded to -inf
+        int framenum = Com_FrameForTime(cl.servertime + 1, cl.frametime.div * BASE_FRAMERATE);
+        int delta = cl.frame.number + 1 - framenum;
+        cl.serverdelta = Com_FloorDiv(delta, cl.frametime.div) * cl.frametime.div;
+    } else if (cls.state == ca_active) {
         int delta = cl.frame.number - cl.servertime / cl.frametime.time;
         cl.serverdelta = Q_align_down(delta, cl.frametime.div);
     }
@@ -1252,6 +1262,12 @@ static void CL_ParseSetting(void)
 #if USE_FPS
     case SVS_FPS:
         set_server_fps(value);
+        break;
+    case SVS_EXACTFPS:
+        // the SVS_FPS of the same reply re-anchors on the exact timeline;
+        // cleared at serverdata (CL_ClearState)
+        if (value == 1)
+            cl.frametime_exact = true;
         break;
 #endif
     default:

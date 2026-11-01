@@ -308,6 +308,7 @@ typedef struct client_s {
     int             framenum;
 #if USE_FPS
     int             framediv;
+    bool            exactfps;   // CLS_EXACTFPS, kept outside settings[]
 #endif
     unsigned        frameflags;
 

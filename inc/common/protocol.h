@@ -417,6 +417,14 @@ typedef enum {
     SVS_MAX
 } serverSetting_t;
 
+// Exact frame time: client keeps the rational timeline of utils.h. Value 1,
+// sent before CLS_FPS and answered by SVS_EXACTFPS 1 before SVS_FPS. Fixed
+// high indices outside the upstream ranges: CLS_MAX, SVS_MAX and settings[]
+// stay as upstream, old servers drop the index (>= CLS_MAX), old clients
+// ignore it
+#define CLS_EXACTFPS    0x4458
+#define SVS_EXACTFPS    0x4458
+
 // Q2PRO frame flags sent by the server
 // only SUPPRESSCOUNT_BITS can be used
 #define FF_SUPPRESSED   BIT(0)

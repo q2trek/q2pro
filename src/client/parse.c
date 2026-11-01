@@ -1227,6 +1227,7 @@ static void set_server_fps(int value)
 {
     cl.frametime = Com_ComputeFrametime(value);
     cl.frametime_inv = cl.frametime.div * BASE_1_FRAMETIME;
+    cl.prevservertime = cl.servertime - cl.frametime.time;
 
     // fix time delta
     if (cls.state == ca_active) {

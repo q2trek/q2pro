@@ -388,7 +388,7 @@ static explosion_t *CL_PlainExplosion(void)
     VectorCopy(te.pos1, ex->ent.origin);
     ex->type = ex_poly;
     ex->ent.flags = RF_FULLBRIGHT;
-    ex->start = cl.servertime - CL_FRAMETIME;
+    ex->start = cl.prevservertime;
     ex->light = 350;
     VectorSet(ex->lightcolor, 1.0f, 0.5f, 0.5f);
     ex->ent.angles[1] = Q_rand() % 360;
@@ -407,7 +407,7 @@ static void CL_BFGExplosion(const vec3_t pos)
     VectorCopy(pos, ex->ent.origin);
     ex->type = ex_poly;
     ex->ent.flags = RF_FULLBRIGHT;
-    ex->start = cl.servertime - CL_FRAMETIME;
+    ex->start = cl.prevservertime;
     ex->light = 350;
     VectorSet(ex->lightcolor, 0.0f, 1.0f, 0.0f);
     ex->ent.model = cl_mod_bfg_explo;
@@ -435,7 +435,7 @@ void CL_AddWeaponMuzzleFX(cl_muzzlefx_t fx, const vec3_t offset, float scale)
     else
         cl.weapon.muzzle.roll = 0;
     VectorCopy(offset, cl.weapon.muzzle.offset);
-    cl.weapon.muzzle.time = cl.servertime - CL_FRAMETIME;
+    cl.weapon.muzzle.time = cl.prevservertime;
 }
 
 void CL_AddMuzzleFX(const vec3_t origin, const vec3_t angles, cl_muzzlefx_t fx, int skin, float scale)
@@ -456,7 +456,7 @@ void CL_AddMuzzleFX(const vec3_t origin, const vec3_t angles, cl_muzzlefx_t fx, 
     ex->type = ex_mflash;
     ex->ent.flags = RF_TRANSLUCENT | RF_NOSHADOW | RF_FULLBRIGHT;
     ex->ent.alpha = 1.0f;
-    ex->start = cl.servertime - CL_FRAMETIME;
+    ex->start = cl.prevservertime;
     ex->ent.model = cl_mod_muzzles[fx];
     ex->ent.skinnum = skin;
     ex->ent.scale = scale;
@@ -478,7 +478,7 @@ void CL_SmokeAndFlash(const vec3_t origin)
     ex->type = ex_misc;
     ex->frames = 4;
     ex->ent.flags = RF_TRANSLUCENT | RF_NOSHADOW;
-    ex->start = cl.servertime - CL_FRAMETIME;
+    ex->start = cl.prevservertime;
     ex->ent.model = cl_mod_smoke;
 
     ex = CL_AllocExplosion();
@@ -486,7 +486,7 @@ void CL_SmokeAndFlash(const vec3_t origin)
     ex->type = ex_flash;
     ex->ent.flags = RF_FULLBRIGHT;
     ex->frames = 2;
-    ex->start = cl.servertime - CL_FRAMETIME;
+    ex->start = cl.prevservertime;
     ex->ent.model = cl_mod_flash;
 }
 
@@ -1356,7 +1356,7 @@ void CL_ParseTEnt(void)
             VectorSet(ex->lightcolor, 0.19f, 0.41f, 0.75f);
             break;
         }
-        ex->start = cl.servertime - CL_FRAMETIME;
+        ex->start = cl.prevservertime;
         ex->light = 150;
         ex->ent.model = cl_mod_explode;
         ex->frames = 4;
@@ -1487,7 +1487,7 @@ void CL_ParseTEnt(void)
         // note to self
         // we need a better no draw flag
         ex->ent.flags = RF_BEAM;
-        ex->start = cl.servertime - CL_FRAMETIME;
+        ex->start = cl.prevservertime;
         ex->light = 100 + (Q_rand() % 75);
         VectorSet(ex->lightcolor, 1.0f, 1.0f, 0.3f);
         ex->ent.model = cl_mod_flash;
@@ -1602,7 +1602,7 @@ void CL_ParseTEnt(void)
         ex->ent.flags = RF_FULLBRIGHT | RF_TRANSLUCENT;
         ex->ent.scale = 3;
         ex->ent.skinnum = 2;
-        ex->start = cl.servertime - CL_FRAMETIME;
+        ex->start = cl.prevservertime;
         ex->light = 550;
         VectorSet(ex->lightcolor, 0.19f, 0.41f, 0.75f);
         ex->frames = 4;

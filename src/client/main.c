@@ -2943,7 +2943,7 @@ static void CL_SetClientTime(void)
         return;
     }
 
-    prevtime = cl.servertime - CL_FRAMETIME;
+    prevtime = cl.prevservertime;
     if (cl.time > cl.servertime) {
         SHOWCLAMP(2, "high clamp %i\n", cl.time - cl.servertime);
         cl.time = cl.servertime;

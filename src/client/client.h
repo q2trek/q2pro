@@ -203,6 +203,7 @@ typedef struct {
     server_frame_t  frame;                // received from server
     server_frame_t  oldframe;
     int             servertime;
+    int             prevservertime;     // time of the frame before servertime
     int             serverdelta;
 
 #if USE_FPS

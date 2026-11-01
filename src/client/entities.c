@@ -110,7 +110,7 @@ entity_update_old(centity_t *ent, const centity_state_t *state, const vec_t *ori
     // start alias model animation
     if (state->frame != ent->current.frame) {
         ent->prev_frame = ent->current.frame;
-        ent->anim_start = cl.servertime - cl.frametime.time;
+        ent->anim_start = cl.prevservertime;
     }
 #endif
 
@@ -387,6 +387,7 @@ void CL_DeltaFrame(void)
         Com_Error(ERR_DROP, "%s: server time overflowed", __func__);
 
     cl.servertime = framenum * CL_FRAMETIME;
+    cl.prevservertime = cl.servertime - CL_FRAMETIME;
 #if USE_FPS
     cl.keyservertime = (framenum / cl.frametime.div) * BASE_FRAMETIME;
 #endif

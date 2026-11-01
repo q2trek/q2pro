@@ -393,7 +393,8 @@ void SV_InitGame(unsigned mvd_spawn)
 
 #if USE_FPS
         // set up default frametime for main loop
-        sv.frametime = Com_ComputeFrametime(BASE_FRAMERATE);
+        sv.framerate = BASE_FRAMERATE;
+        sv.frametime = Com_ComputeFrametime(sv.framerate);
 #endif
     }
 

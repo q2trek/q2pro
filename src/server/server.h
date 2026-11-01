@@ -137,13 +137,11 @@ typedef struct {
 // variable server FPS
 #if USE_FPS
 #define SV_FRAMERATE        sv.framerate
-#define SV_FRAMETIME        sv.frametime.time
 #define SV_FRAMEDIV         sv.frametime.div
 #define SV_FRAMESYNC        !(sv.framenum % sv.frametime.div)
 #define SV_CLIENTSYNC(cl)   !(sv.framenum % (cl)->framediv)
 #else
 #define SV_FRAMERATE        BASE_FRAMERATE
-#define SV_FRAMETIME        BASE_FRAMETIME
 #define SV_FRAMEDIV         1
 #define SV_FRAMESYNC        1
 #define SV_CLIENTSYNC(cl)   1
@@ -160,7 +158,7 @@ typedef struct {
 #endif
 
     int         framenum;
-    unsigned    frameresidual;
+    uint64_t    framecredit;    // elapsed ms * SV_FRAMERATE not yet stepped (utils.h)
 
     char        mapcmd[MAX_QPATH];          // ie: *intro.cin+base
 

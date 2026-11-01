@@ -1904,6 +1904,12 @@ static void SV_MasterShutdown(void)
     }
 }
 
+// whole ms until the credit pays for the next world step (D(n) of utils.h)
+static unsigned SV_FrameBudget(void)
+{
+    return (FRAME_CREDIT - sv.framecredit + SV_FRAMERATE - 1) / SV_FRAMERATE;
+}
+
 /*
 ==================
 SV_Frame
@@ -1948,9 +1954,10 @@ unsigned SV_Frame(unsigned msec)
     }
 
     // move autonomous things around if enough time has passed
-    sv.frameresidual += msec;
-    if (sv.frameresidual < SV_FRAMETIME) {
-        return SV_FRAMETIME - sv.frameresidual;
+    // (credit in ms * rate units, a step costs FRAME_CREDIT)
+    sv.framecredit += (uint64_t)msec * SV_FRAMERATE;
+    if (sv.framecredit < FRAME_CREDIT) {
+        return SV_FrameBudget();
     }
 
     if (svs.initialized && !check_paused()) {
@@ -1984,16 +1991,17 @@ unsigned SV_Frame(unsigned msec)
         Cbuf_Frame(&cmd_buffer);
     }
 
+    sv.framecredit -= FRAME_CREDIT;
+
     // decide how long to sleep next frame
-    sv.frameresidual -= SV_FRAMETIME;
-    if (sv.frameresidual < SV_FRAMETIME) {
-        return SV_FRAMETIME - sv.frameresidual;
+    if (sv.framecredit < FRAME_CREDIT) {
+        return SV_FrameBudget();
     }
 
-    // don't accumulate bogus residual
-    if (sv.frameresidual > 250) {
-        Com_DDDPrintf("Reset residual %u\n", sv.frameresidual);
-        sv.frameresidual = 100;
+    // don't accumulate bogus residual (more than 250 ms owed -> 100 ms)
+    if (sv.framecredit > 250 * SV_FRAMERATE) {
+        Com_DDDPrintf("Reset residual %"PRIu64"\n", sv.framecredit / SV_FRAMERATE);
+        sv.framecredit = 100 * SV_FRAMERATE;
     }
 
     return 0;

@@ -35,6 +35,9 @@ upstream clients ignore it, and the protocol version doesn't change. Demos
 carry no settings (they're recorded with protocol 34 or its extended variant),
 so playback keeps the old timeline. Demo and MVD formats don't change.
 
+The tests for these commits, at every rate from 10 to 60 Hz, are in
+[q2trek/tickrate-tests](https://github.com/q2trek/tickrate-tests).
+
 Q2PRO is an enhanced Quake 2 client and server for Windows and Linux. Supported
 features include:
 

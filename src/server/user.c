@@ -855,6 +855,11 @@ static void SV_PacketdupHack_f(void)
     int numdups = sv_client->numpackets - 1;
 
     if (Cmd_Argc() > 1) {
+        // loopback loses nothing, and the copies of a batch overflow its queue
+        if (sv_client->netchan.remote_address.type == NA_LOOPBACK) {
+            SV_ClientPrintf(sv_client, PRINT_HIGH, "Packetdup is not used on loopback.\n");
+            return;
+        }
         numdups = Q_atoi(Cmd_Argv(1));
         if (numdups < 0 || numdups > sv_packetdup_hack->integer) {
             SV_ClientPrintf(sv_client, PRINT_HIGH,

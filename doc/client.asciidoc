@@ -123,7 +123,10 @@ cl_updaterate::
     when server is running in variable FPS mode, otherwise default rate of 10
     packets per second is used. Specified rate should evenly divide native
     server frame rate.  Default value is 0, which means to use the highest
-    update rate available (that is, native server frame rate).
+    update rate available (that is, native server frame rate). On a server of
+    this build, 30 and 60 Hz updates are timed exactly. An upstream Q2PRO
+    server sends the full rate too, but the client rounds the frame period
+    down to whole milliseconds (16 ms at 60 Hz), as upstream does.
 
 cl_warn_on_fps_rounding::
     Print a warning if value specified for ‘cl_maxfps’ or ‘r_maxfps’ is inexact

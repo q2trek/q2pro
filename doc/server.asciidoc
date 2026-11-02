@@ -258,10 +258,14 @@ sv_changemapcmd::
 sv_fps::
     Specifies native server frame rate.  Only used when game mod advertises
     support for variable server FPS. Specified rate should be a multiple of 10
-    (maximum rate is 60). Default value is 10 frames per second. Only clients
-    that support Q2PRO protocol will be able to take advantage of higher FPS.
-    Other clients will receive updates at default rate of 10 packets per
-    second.
+    (maximum rate is 60). The engine rounds other values down to a multiple
+    of 10 and clamps them to 10..60 (25 becomes 20), but OpenFFA and OpenTDM stop with an
+    error on them. Default value is 10 frames per second. Clients of this
+    build receive updates at the full rate. Other Q2PRO clients receive the
+    highest rate that divides the server rate and has a whole millisecond
+    period, which is 20 packets per second from a 60 Hz server and 10 from a
+    30 Hz one. Clients without the Q2PRO protocol receive updates at default
+    rate of 10 packets per second.
 
 lrcon_password::
     If not empty, enables users of this password to execute limited set of rcon

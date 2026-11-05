@@ -256,6 +256,17 @@ typedef struct {
     unsigned    cost;
 } ratelimit_t;
 
+// `status n`: per-player counts of one 10 s window
+typedef enum {
+    PACE_PACKETS,   // accepted packets
+    PACE_CMDS,      // new moves run, backups restored from the packet included
+    PACE_DUPS,      // lastcmd runs filling a loss
+    PACE_REJECTS,   // moves refused by the msec budget
+    PACE_FRAMES,    // server frames while spawned
+    PACE_HELD,      // ... with horizontal velocity but no movement
+    PACE_MAX
+} pace_t;
+
 typedef struct client_s {
     list_t          entry;
 
@@ -297,6 +308,9 @@ typedef struct client_s {
     int             num_moves;      // reset every 10 seconds
     int             moves_per_sec;  // average movement FPS
     int             cmd_msec_used;
+    int             pace[PACE_MAX];         // running window
+    int             pace_shown[PACE_MAX];   // last full window
+    vec3_t          pace_origin;
     float           timescale;
 
     int             ping, min_ping, max_ping;
@@ -805,6 +819,20 @@ static inline void SV_GetClient_ViewOrg(const client_t *client, vec3_t org)
     } else {
         const gclient_old_t *cl = client->edict->client;
         VectorMA(cl->ps.viewoffset, 0.125f, cl->ps.pmove.origin, org);
+    }
+}
+
+// pmove origin into org; true when the horizontal velocity is not zero
+static inline bool SV_GetClient_Pmove(const client_t *client, vec3_t org)
+{
+    if (IS_NEW_GAME_API) {
+        const gclient_new_t *cl = client->edict->client;
+        VectorScale(cl->ps.pmove.origin, 0.125f, org);
+        return cl->ps.pmove.velocity[0] || cl->ps.pmove.velocity[1];
+    } else {
+        const gclient_old_t *cl = client->edict->client;
+        VectorScale(cl->ps.pmove.origin, 0.125f, org);
+        return cl->ps.pmove.velocity[0] || cl->ps.pmove.velocity[1];
     }
 }
 

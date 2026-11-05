@@ -1421,6 +1421,13 @@ static void SV_CalcPings(void)
 
     FOR_EACH_CLIENT(cl) {
         if (cl->state == cs_spawned) {
+            vec3_t org;
+
+            cl->pace[PACE_FRAMES]++;
+            if (SV_GetClient_Pmove(cl, org) && VectorCompare(org, cl->pace_origin))
+                cl->pace[PACE_HELD]++;
+            VectorCopy(org, cl->pace_origin);
+
             cl->ping = calc(cl);
             if (cl->ping) {
                 if (cl->ping < cl->min_ping) {
@@ -1436,11 +1443,15 @@ static void SV_CalcPings(void)
             if (!res) {
                 cl->moves_per_sec = cl->num_moves / 10;
                 cl->num_moves = 0;
+                memcpy(cl->pace_shown, cl->pace, sizeof(cl->pace));
+                memset(cl->pace, 0, sizeof(cl->pace));
             }
         } else {
             cl->ping = 0;
             cl->moves_per_sec = 0;
             cl->num_moves = 0;
+            memset(cl->pace, 0, sizeof(cl->pace));
+            memset(cl->pace_shown, 0, sizeof(cl->pace_shown));
         }
 
         // let the game dll know about the ping
@@ -1560,6 +1571,7 @@ static void SV_PacketEvent(void)
 
         // this is a valid, sequenced packet, so process it
         client->lastmessage = svs.realtime;    // don't timeout
+        client->pace[PACE_PACKETS]++;
 #if USE_ICMP
         client->unreachable = false; // don't drop
 #endif
@@ -2262,7 +2274,10 @@ void SV_Init(void)
     sv_timescale_kick = Cvar_Get("sv_timescale_kick", "0", 0);
     sv_allow_nodelta = Cvar_Get("sv_allow_nodelta", "1", 0);
 #if USE_FPS
-    sv_fps = Cvar_Get("sv_fps", "10", CVAR_LATCH);
+    sv_fps = Cvar_Get("sv_fps", "10", CVAR_LATCH | CVAR_SERVERINFO);
+#else
+    // fixed 10 Hz: published too, and a cfg `set sv_fps` cannot change it
+    Cvar_Get("sv_fps", "10", CVAR_ROM | CVAR_SERVERINFO);
 #endif
     sv_force_reconnect = Cvar_Get("sv_force_reconnect", "", CVAR_LATCH);
     sv_show_name_changes = Cvar_Get("sv_show_name_changes", "0", 0);

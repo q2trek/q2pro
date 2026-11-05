@@ -1132,8 +1132,10 @@ static inline void SV_ClientThink(usercmd_t *cmd)
     if (sv_client->command_msec < 0 && sv_enforcetime->integer) {
         Com_DPrintf("commandMsec underflow from %s: %d\n",
                     sv_client->name, sv_client->command_msec);
+        sv_client->pace[PACE_REJECTS]++;
         return;
     }
+    sv_client->pace[cmd == &sv_client->lastcmd ? PACE_DUPS : PACE_CMDS]++;
 
     if (cmd->buttons != old->buttons
         || cmd->forwardmove != old->forwardmove

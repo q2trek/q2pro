@@ -265,7 +265,8 @@ sv_fps::
     highest rate that divides the server rate and has a whole millisecond
     period, which is 20 packets per second from a 60 Hz server and 10 from a
     30 Hz one. Clients without the Q2PRO protocol receive updates at default
-    rate of 10 packets per second.
+    rate of 10 packets per second. The value is published in serverinfo,
+    so server browsers and clients can read the rate.
 
 lrcon_password::
     If not empty, enables users of this password to execute limited set of rcon
@@ -654,6 +655,11 @@ status [mode]::
     _mode_ is significant.
        d(ownloads)::: show current downloads
        l(ag)::: show connection quality statistics
+       n(et pacing)::: show the packets, movement commands, duplicate and
+       rejected commands per second of each client over the last full 10
+       second window, the share of server frames in which the client has
+       horizontal velocity but did not move (held%, seen by others as a
+       stop), and the client packet rate the server frame rate needs
        p(rotocols)::: show network protocol information
        s(ettings)::: show client settings
        t(ime)::: show connection times

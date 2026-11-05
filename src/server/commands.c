@@ -521,6 +521,26 @@ static void SV_Kick_f(void)
     sv_player = NULL;
 }
 
+// `status n`: rates of the last full 10 s window (counts / 10), no addresses
+static void dump_pacing(void)
+{
+    client_t    *client;
+
+    Com_Printf(
+        "num name              pps  cmds   dup   rej held%%\n"
+        "--- --------------- ----- ----- ----- ----- -----\n");
+
+    FOR_EACH_CLIENT(client) {
+        const int *p = client->pace_shown;
+
+        Com_Printf("%3i %-15.15s %5.1f %5.1f %5.1f %5.1f %4i%%\n", client->number, client->name,
+                   p[PACE_PACKETS] * 0.1, p[PACE_CMDS] * 0.1, p[PACE_DUPS] * 0.1, p[PACE_REJECTS] * 0.1,
+                   p[PACE_FRAMES] ? p[PACE_HELD] * 100 / p[PACE_FRAMES] : 0);
+    }
+
+    Com_Printf("\nrecommended client packet rate: >= %d\n", SV_FRAMERATE);
+}
+
 static void dump_clients(void)
 {
     client_t    *client;
@@ -710,12 +730,13 @@ static void SV_Status_f(void)
             switch (*w) {
             case 'd': dump_downloads(); break;
             case 'l': dump_lag();       break;
+            case 'n': dump_pacing();    break;
             case 'p': dump_protocols(); break;
             case 's': dump_settings();  break;
             case 't': dump_time();      break;
             case 'v': dump_versions();  break;
             default:
-                Com_Printf("Usage: %s [d|l|p|s|t|v]\n", Cmd_Argv(0));
+                Com_Printf("Usage: %s [d|l|n|p|s|t|v]\n", Cmd_Argv(0));
                 dump_clients();
                 break;
             }

@@ -35,6 +35,12 @@ upstream clients ignore it, and the protocol version doesn't change. Demos
 carry no settings (they're recorded with protocol 34 or its extended variant),
 so playback keeps the old timeline. Demo and MVD formats don't change.
 
+The server publishes `sv_fps` in serverinfo, so a browser or a client can see
+the rate before it connects. `status n` shows how each client paces its
+movement: packets, commands, duplicate and rejected commands per second over
+the last 10 s, and held%, the share of server frames in which the player has
+velocity but doesn't move. Other players see those frames as stops.
+
 The tests for these commits, at every rate from 10 to 60 Hz, are in
 [q2trek/tickrate-tests](https://github.com/q2trek/tickrate-tests).
 

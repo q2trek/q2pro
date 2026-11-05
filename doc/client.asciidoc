@@ -43,7 +43,10 @@ cl_maxpackets::
     Number of packets client sends per second. 0 means no particular limit.
     Unless connected using Q2PRO protocol, this variable is ignored and packets
     are sent in sync with client physics frame rate, controlled with
-    ‘cl_maxfps’ variable. Default value is 30.
+    ‘cl_maxfps’ variable. Default value is 0. With a limit below the server
+    frame rate, some server frames get no new movement command and other
+    players see this one move in steps (30 sends about 21 packets per second
+    at the default ‘cl_maxfps’ 62, a third of a 60 Hz server's frames).
 
 cl_fuzzhack::
     Enables ‘cl_maxpackets’ limit even if Q2PRO protocol is not in use by

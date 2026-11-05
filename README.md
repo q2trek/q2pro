@@ -49,6 +49,13 @@ jump. The delay follows the 90th percentile of the intervals between position
 changes. When frames come steadily the extra delay decays to 0 and players are
 drawn as before.
 
+`cl_maxpackets` defaults to 0 here (upstream 30), so the client sends a packet
+every client frame. With 30 it sends only every third frame at the default
+`cl_maxfps` 62, about 21 packets per second, and a 60 Hz server runs two of
+every three frames of that player without a new command: others see the
+player move in steps. `cl_maxfps` stays 62. The native client keeps its frame
+period, and 62 already sends more than one packet per 60 Hz server frame.
+
 The tests for these commits, at every rate from 10 to 60 Hz, are in
 [q2trek/tickrate-tests](https://github.com/q2trek/tickrate-tests).
 

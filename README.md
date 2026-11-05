@@ -41,6 +41,14 @@ movement: packets, commands, duplicate and rejected commands per second over
 the last 10 s, and held%, the share of server frames in which the player has
 velocity but doesn't move. Other players see those frames as stops.
 
+The client draws other players a short delay behind the newest frame, from a
+history of their positions (`cl_remote_lerp`, on by default, needs
+`variable-fps`). A frame that comes late, or a server frame in which a player
+didn't move because no command arrived, then doesn't show as a stop and a
+jump. The delay follows the 90th percentile of the intervals between position
+changes. When frames come steadily the extra delay decays to 0 and players are
+drawn as before.
+
 The tests for these commits, at every rate from 10 to 60 Hz, are in
 [q2trek/tickrate-tests](https://github.com/q2trek/tickrate-tests).
 

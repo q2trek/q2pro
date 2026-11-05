@@ -42,6 +42,9 @@ cvar_t  *cl_rollhack;
 cvar_t  *cl_noglow;
 cvar_t  *cl_nobob;
 cvar_t  *cl_nolerp;
+#if USE_FPS
+cvar_t  *cl_remote_lerp;
+#endif
 
 #if USE_DEBUG
 cvar_t  *cl_shownet;
@@ -2753,6 +2756,9 @@ static void CL_InitLocal(void)
     cl_noglow = Cvar_Get("cl_noglow", "0", 0);
     cl_nobob = Cvar_Get("cl_nobob", "0", 0);
     cl_nolerp = Cvar_Get("cl_nolerp", "0", 0);
+#if USE_FPS
+    cl_remote_lerp = Cvar_Get("cl_remote_lerp", "1", 0);
+#endif
 
     // hack for timedemo
     com_timedemo->changed = cl_sync_changed;

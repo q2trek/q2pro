@@ -51,6 +51,7 @@ client_src = [
   'src/client/precache.c',
   'src/client/predict.c',
   'src/client/refresh.c',
+  'src/client/remote_lerp.c',
   'src/client/screen.c',
   'src/client/sound/main.c',
   'src/client/sound/mem.c',

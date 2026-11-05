@@ -548,6 +548,9 @@ extern cvar_t   *cl_rollhack;
 extern cvar_t   *cl_noglow;
 extern cvar_t   *cl_nobob;
 extern cvar_t   *cl_nolerp;
+#if USE_FPS
+extern cvar_t   *cl_remote_lerp;  // history of the other players (remote_lerp.h)
+#endif
 
 #if USE_DEBUG
 #define SHOWNET(level, ...) \

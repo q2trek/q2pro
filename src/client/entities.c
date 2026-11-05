@@ -18,6 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // cl_ents.c -- entity parsing and management
 
 #include "client.h"
+#include "remote_lerp.h"
 
 extern qhandle_t cl_mod_powerscreen;
 extern qhandle_t cl_mod_laser;
@@ -243,6 +244,88 @@ static void parse_entity_event(int number)
     }
 }
 
+#if USE_FPS
+// cl_remote_lerp: rings of the other players and of the chased view
+static rl_set_t rl_set;
+static int rl_time, rl_div;
+static bool rl_exact;
+
+static int rl_interval(void)
+{
+    return RL_Interval(cl.frametime_exact, cl.frametime.div * BASE_FRAMERATE, cl.frametime.time);
+}
+
+static rl_cond_t rl_cond(void)
+{
+    return (rl_cond_t){ cl_remote_lerp->integer == 1, cls.demo.playback, cl.frametime.div, cl_nolerp->integer };
+}
+
+static bool rl_teleported(const centity_t *ent)
+{
+    return ent->event_frame == cl.frame.number &&
+        (ent->current.event == EV_PLAYER_TELEPORT || ent->current.event == EV_OTHER_TELEPORT);
+}
+
+// a parsed frame: the other players and the chased view; before check_player_lerp duplicates oldframe
+static void rl_push_frame(void)
+{
+    const player_state_t *ps = &cl.frame.ps, *ops = &cl.oldframe.ps;
+
+    if (cl.frametime.div != rl_div || cl.frametime_exact != rl_exact) {   // server rate or clock changed
+        RL_ResetAll(&rl_set);
+        rl_div = cl.frametime.div;
+        rl_exact = cl.frametime_exact;
+    }
+    RL_SetPov(&rl_set, cl.frame.clientNum);
+
+    for (int i = 0; i < cl.frame.numEntities; i++) {
+        const centity_state_t *s = &cl.entityStates[(cl.frame.firstEntity + i) & PARSE_ENTITIES_MASK];
+        if (s->number < 1 || s->number > cl.maxclients || s->number == cl.frame.clientNum + 1)
+            continue;
+        rl_snap_t snap = { .t = cl.servertime, .frame = s->frame, .model = s->modelindex,
+                           .teleport = rl_teleported(&cl_entities[s->number]) };
+        VectorCopy(s->origin, snap.org);
+        VectorCopy(s->angles, snap.ang);
+        RL_Push(&rl_set.player[s->number - 1], &snap, 512);
+    }
+
+    if (cl.frame.clientNum != cl.clientNum) {
+        rl_snap_t snap = { .t = cl.servertime, .model = cl.frame.clientNum, .stat = ps->stats[STAT_CHASE],
+                           .teleport = rl_teleported(&cl_entities[cl.frame.clientNum + 1]) };
+        if (cl.oldframe.valid && (cl.csr.extended ? (ops->rdflags ^ ps->rdflags) & RDF_TELEPORT_BIT
+                                                  : (ops->pmove.pm_flags ^ ps->pmove.pm_flags) & PMF_TELEPORT_BIT))
+            snap.teleport = true;
+        for (int i = 0; i < 3; i++)
+            snap.org[i] = SHORT2COORD(ps->pmove.origin[i]);
+        VectorCopy(ps->viewangles, snap.ang);
+        RL_Push(&rl_set.chase, &snap, 256);
+    }
+}
+
+// once per drawn frame, from CL_CalcViewValues
+static void rl_advance(void)
+{
+    int dt = max(cl.time - rl_time, 0), I = rl_interval();   // < 0: cl.time restarted
+
+    rl_time = cl.time;
+    for (int i = 0; i < cl.maxclients && i < RL_PLAYERS; i++)
+        if (rl_set.player[i].count)
+            RL_Advance(&rl_set.player[i], dt, I);
+    if (rl_set.chase.count)
+        RL_Advance(&rl_set.chase, dt, I);
+}
+
+static bool rl_entity(int entnum, rl_out_t *o)
+{
+    rl_cond_t c = rl_cond();
+
+    if (entnum < 1 || entnum > cl.maxclients)
+        return false;
+    rl_ring_t *r = &rl_set.player[entnum - 1];
+    return RL_EntityOn(&c, entnum, cl.maxclients, cl.frame.clientNum, r->extra) && RL_Sample(r, cl.time, rl_interval(), o);
+}
+#endif
+
 static void set_active_state(void)
 {
     cls.state = ca_active;
@@ -264,6 +347,9 @@ static void set_active_state(void)
 
     cl.frameflags = 0;
     cl.initialSeq = cls.netchan.outgoing_sequence;
+#if USE_FPS
+    RL_ResetAll(&rl_set);
+#endif
 
     if (cls.demo.playback) {
         // init some demo things
@@ -448,6 +534,10 @@ void CL_DeltaFrame(void)
         IN_Activate();
     }
 
+#if USE_FPS
+    rl_push_frame();
+#endif
+
     check_player_lerp(&cl.oldframe, &cl.frame, 1);
 
 #if USE_FPS
@@ -545,6 +635,9 @@ static void CL_AddPacketEntities(void)
 
         cent = &cl_entities[s1->number];
 
+        bool rl_on = false;     // drawn from the history of a remote player
+        rl_out_t rl_o;
+
         has_trail = false;
 
         effects = s1->effects;
@@ -614,6 +707,11 @@ static void CL_AddPacketEntities(void)
                 // interpolate origin
                 LerpVector(cent->prev.origin, cent->current.origin,
                            cl.lerpfrac, ent.origin);
+#if USE_FPS
+                rl_on = rl_entity(s1->number, &rl_o);
+                if (rl_on)
+                    VectorCopy(rl_o.org, ent.origin);
+#endif
                 VectorCopy(ent.origin, ent.oldorigin);
             }
 #if USE_FPS
@@ -633,6 +731,13 @@ static void CL_AddPacketEntities(void)
 
                 ent.oldframe = cent->prev_frame;
                 ent.backlerp = 1.0f - frac;
+            }
+
+            // the frame of the history at the drawn time, unless the effects animate it
+            if (rl_on && ent.frame == s1->frame) {
+                ent.frame = rl_o.frame;
+                ent.oldframe = rl_o.oldframe;
+                ent.backlerp = rl_o.backlerp;
             }
 #endif
         }
@@ -767,6 +872,10 @@ static void CL_AddPacketEntities(void)
             V_AddLight(start, 100, 1, 0, 0);
         } else if (s1->number == cl.frame.clientNum + 1) {
             VectorCopy(cl.playerEntityAngles, ent.angles);      // use predicted angles
+        } else if (rl_on) {
+            VectorCopy(rl_o.ang, ent.angles);
+            if (s1->modelindex == MODELINDEX_PLAYER && cl_rollhack->integer)
+                ent.angles[ROLL] = -ent.angles[ROLL];
         } else { // interpolate angles
             LerpAngles(cent->prev.angles, cent->current.angles,
                        cl.lerpfrac, ent.angles);
@@ -1397,10 +1506,16 @@ void CL_CalcViewValues(void)
     const player_state_t *ps, *ops;
     vec3_t viewoffset;
     float lerp;
+    bool rl_on = false;     // the chased player's view from its history
+    rl_out_t rl_o;
 
     if (!cl.frame.valid) {
         return;
     }
+
+#if USE_FPS
+    rl_advance();
+#endif
 
     // find states to interpolate between
     ps = &cl.frame.ps;
@@ -1426,6 +1541,13 @@ void CL_CalcViewValues(void)
             cl.refdef.vieworg[i] = SHORT2COORD(ops->pmove.origin[i] +
                 lerp * (ps->pmove.origin[i] - ops->pmove.origin[i]));
         }
+#if USE_FPS
+        rl_cond_t c = rl_cond();
+        rl_on = RL_CameraOn(&c, false, cl.frame.clientNum, cl.clientNum, rl_set.chase.extra) &&
+            RL_Sample(&rl_set.chase, cl.time, rl_interval(), &rl_o);
+        if (rl_on)
+            VectorCopy(rl_o.org, cl.refdef.vieworg);
+#endif
     }
 
     // if not running a demo or on a locked frame, add the local angle movement
@@ -1443,6 +1565,8 @@ void CL_CalcViewValues(void)
         // lerp from predicted angles, since enhanced servers
         // do not send viewangles each frame
         LerpAngles(cl.predicted_angles, ps->viewangles, lerp, cl.refdef.viewangles);
+    } else if (rl_on) {
+        VectorCopy(rl_o.ang, cl.refdef.viewangles);
     } else {
         // just use interpolated values
         LerpAngles(ops->viewangles, ps->viewangles, lerp, cl.refdef.viewangles);

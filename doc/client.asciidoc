@@ -128,6 +128,14 @@ cl_updaterate::
     server sends the full rate too, but the client rounds the frame period
     down to whole milliseconds (16 ms at 60 Hz), as upstream does.
 
+cl_remote_lerp::
+    Smooths other players between server frames by drawing them a short
+    delay behind, from a history of their positions. A player whose frames
+    come at uneven times (a late or missing frame) keeps moving instead of
+    stopping and jumping. Only used when the client is built with the
+    ‘variable-fps’ option. Default value is 1 (enabled). 0 draws them as
+    upstream does.
+
 cl_warn_on_fps_rounding::
     Print a warning if value specified for ‘cl_maxfps’ or ‘r_maxfps’ is inexact
     due to rounding. Default value is 1 (enabled).

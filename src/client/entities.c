@@ -246,6 +246,8 @@ static void parse_entity_event(int number)
 
 #if USE_FPS
 // cl_remote_lerp: rings of the other players and of the chased view
+// defined here and NULL until CL_InitLocal registers it, so entities.c links with any main.c
+cvar_t *cl_remote_lerp;
 static rl_set_t rl_set;
 static int rl_time, rl_div;
 static bool rl_exact;
@@ -257,7 +259,7 @@ static int rl_interval(void)
 
 static rl_cond_t rl_cond(void)
 {
-    return (rl_cond_t){ cl_remote_lerp->integer == 1, cls.demo.playback, cl.frametime.div, cl_nolerp->integer };
+    return (rl_cond_t){ cl_remote_lerp && cl_remote_lerp->integer == 1, cls.demo.playback, cl.frametime.div, cl_nolerp->integer };
 }
 
 static bool rl_teleported(const centity_t *ent)

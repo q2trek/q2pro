@@ -42,9 +42,6 @@ cvar_t  *cl_rollhack;
 cvar_t  *cl_noglow;
 cvar_t  *cl_nobob;
 cvar_t  *cl_nolerp;
-#if USE_FPS
-cvar_t  *cl_remote_lerp;
-#endif
 
 #if USE_DEBUG
 cvar_t  *cl_shownet;

@@ -4,8 +4,8 @@ Q2PRO
 Tick rates from 10 to 60 Hz in this fork
 ----------------------------------------
 
-This is q2trek/q2pro. Its `tickrate` branch is upstream `master` plus the
-tick rate commits, and `master` follows upstream unchanged.
+This is q2trek/q2pro. Its `master` branch is upstream `master` plus the tick
+rate commits (also kept on the `tickrate` branch).
 
 Upstream Q2PRO already runs `sv_fps` above 10 when the engine is built with
 the `variable-fps` meson option (off by default, on in the nightly builds) and

@@ -8,8 +8,9 @@ This is q2trek/q2pro. Its `master` branch is upstream `master` plus the tick
 rate commits (also kept on the `tickrate` branch).
 
 Upstream Q2PRO already runs `sv_fps` above 10 when the engine is built with
-the `variable-fps` meson option (off by default, on in the nightly builds) and
-the game library sets `GMF_VARIABLE_FPS`. The same option is needed here. The
+the `variable-fps` meson option and the game library sets `GMF_VARIABLE_FPS`.
+The option is off by default, and the published nightly builds leave it off
+(checked on r3834: no `sv_fps` or `cl_updaterate`). The same option is needed here. The
 bundled baseq2 doesn't set the flag, but OpenFFA and OpenTDM do (see
 q2trek/openffa and q2trek/opentdm). Upstream keeps the frame period in whole
 milliseconds, though. At 60 Hz that's 16 ms, so the server makes 62.5 steps

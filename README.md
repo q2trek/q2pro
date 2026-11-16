@@ -47,8 +47,15 @@ history of their positions (`cl_remote_lerp`, on by default, needs
 `variable-fps`). A frame that comes late, or a server frame in which a player
 didn't move because no command arrived, then doesn't show as a stop and a
 jump. The delay follows the 90th percentile of the intervals between position
-changes. When frames come steadily the extra delay decays to 0 and players are
-drawn as before.
+changes. One snapshot interval stays in reserve even when the adjustable
+extra delay decays to 0. A dropped change point stays as the history anchor,
+so a sparse sender can resume after a stop without stepping backwards.
+
+Each remote player and the chased view has a presentation clock that follows
+the delayed target using real elapsed time, so it can advance while the
+snapshot timeline is clamped. Position, angles and animation share this clock;
+it stops on pause and never runs past the newest snapshot. These paths apply
+to live variable-FPS play above 10 Hz; demo playback keeps its existing path.
 
 `cl_maxpackets` defaults to 0 here (upstream 30), so the client sends a packet
 every client frame. With 30 it sends only every third frame at the default

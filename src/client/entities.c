@@ -324,7 +324,8 @@ static bool rl_entity(int entnum, rl_out_t *o)
     if (entnum < 1 || entnum > cl.maxclients)
         return false;
     rl_ring_t *r = &rl_set.player[entnum - 1];
-    return RL_EntityOn(&c, entnum, cl.maxclients, cl.frame.clientNum, r->extra) && RL_Sample(r, cl.time, rl_interval(), o);
+    return RL_EntityOn(&c, entnum, cl.maxclients, cl.frame.clientNum, r->extra) &&
+        RL_Sample(r, cl.time, com_eventTime, sv_paused->integer != 0, rl_interval(), o);
 }
 #endif
 
@@ -1546,7 +1547,7 @@ void CL_CalcViewValues(void)
 #if USE_FPS
         rl_cond_t c = rl_cond();
         rl_on = RL_CameraOn(&c, false, cl.frame.clientNum, cl.clientNum, rl_set.chase.extra) &&
-            RL_Sample(&rl_set.chase, cl.time, rl_interval(), &rl_o);
+            RL_Sample(&rl_set.chase, cl.time, com_eventTime, sv_paused->integer != 0, rl_interval(), &rl_o);
         if (rl_on)
             VectorCopy(rl_o.org, cl.refdef.vieworg);
 #endif

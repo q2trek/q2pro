@@ -198,18 +198,33 @@ bool RL_At(const rl_ring_t *r, float t, float D, rl_out_t *o)
     return true;
 }
 
-bool RL_Sample(rl_ring_t *r, int cltime, int I, rl_out_t *o)
+bool RL_Sample(rl_ring_t *r, int cltime, unsigned realtime, bool paused, int I, rl_out_t *o)
 {
-    // shift S: the reserve I plus extra; window S + I: an on-time k1 arrives at t = k1.t - W, so its transition
-    // starts at the arrival, not before it (no partial step on the first frame)
+    if (!r->count)
+        return false;
+
+    // At target, an on-time k1 arrives at P = k1.t - (S + I), where its transition starts.
     float S = fminf(r->extra + I, I + RL_MAX_EXTRA), t = cltime - S;
+    unsigned dt_real = r->has_P ? realtime - r->last_real : 0;
 
     if (r->has_shown && t < r->shown)
         t = r->shown;
-    if (!RL_At(r, t, S + I, o))
-        return false;
+    if (!r->has_P) {
+        r->P = t;
+    } else if (!paused) {
+        if (dt_real >= RL_CLOCK_SNAP) {
+            r->P = fmaxf(r->P, t);
+        } else {
+            float g = fminf(fmaxf(1 + (t - (r->P + dt_real)) * 0.01f, 0.5f), 1.1f);
+            r->P = fmaxf(r->P + dt_real * g, r->P);
+        }
+    }
+    r->P = fminf(r->P, rec(r, 0)->s.t);
+    RL_At(r, r->P, S + I, o);
     r->shown = t;
     r->has_shown = true;
+    r->last_real = realtime;
+    r->has_P = true;
     return true;
 }
 

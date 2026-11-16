@@ -1,8 +1,8 @@
 /* Remote player smoothing without engine dependencies:
    per-player history of snapshots, delay D from the observed interval between position changes,
-   the drawn state at t = cl.time - S with the shift S = min(extra + I, I + RL_MAX_EXTRA): one snapshot interval I of
-   reserve plus the adjustable extra . Times are ms of the client timeline
-   (cl.servertime labels). */
+   presentation clock P follows the target cl.time - S, with S = min(extra + I, I + RL_MAX_EXTRA): one snapshot
+   interval I of reserve plus the adjustable extra. P uses real elapsed time while cl.time is clamped.
+   Snapshot labels and P are ms of the client timeline (cl.servertime labels). */
 
 #pragma once
 
@@ -16,6 +16,7 @@
 #define RL_HOLD         250     // a new D is taken once the percentile has differed this long
 #define RL_ABSENT       100     // no snapshot for longer (or a label not after the last): the history restarts
 #define RL_ANIM         100     // BASE_FRAMETIME
+#define RL_CLOCK_SNAP   251     // real-time gap: resume at max(P, target) instead of stepping
 #define RL_PLAYERS      256     // MAX_CLIENTS
 
 typedef struct {
@@ -40,8 +41,11 @@ typedef struct {
     bool has_moved, has_turned, has_anchor_moved, has_anchor_turned;
     int gap[RL_GAPS], gap_t[RL_GAPS], ngaps, gap_head;
     int D, since;               // accepted delay (0: none yet); since: the percentile differs from D since then
-    float extra, shown;         // adjustable delay beyond the reserve I; t drawn in the last frame of this history
+    float extra, shown;         // adjustable delay beyond I; monotone lower bound of the target, not P
     bool has_shown;
+    float P;                   // one presentation time for origin, angles and animation
+    bool has_P;
+    unsigned last_real;        // untrimmed real time of this history's last nonempty sample
 } rl_ring_t;
 
 typedef struct {
@@ -61,9 +65,10 @@ float RL_Advance(rl_ring_t *r, int dt, int I);
 // position and angles at t with delay D, each between its own change points; animation: frame of the last
 // record <= t, oldframe -> frame over RL_ANIM from the record before that frame's run; false: empty ring
 bool RL_At(const rl_ring_t *r, float t, float D, rl_out_t *out);
-// the drawn state at t = cltime - S, never before the t of the last call; the window S + I, at most
-// 2 I + RL_MAX_EXTRA (extra follows D clamped to [I, I + RL_MAX_EXTRA])
-bool RL_Sample(rl_ring_t *r, int cltime, int I, rl_out_t *out);
+// P follows the monotone target cltime - S with a real-time step, capped by the newest snapshot (no lower cap).
+// Starts at target; paused clocks stand, gaps >= RL_CLOCK_SNAP use max(P, target). Empty rings preserve state.
+// realtime is an unsigned, untrimmed counter; the window stays S + I, at most 2 I + RL_MAX_EXTRA.
+bool RL_Sample(rl_ring_t *r, int cltime, unsigned realtime, bool paused, int I, rl_out_t *out);
 
 // snapshot interval: on the exact timeline the largest Com_FrameTime step, ceil(1000 / rate); else legacy
 int RL_Interval(bool exact, int rate, int legacy);

@@ -62,6 +62,18 @@ static void add_gap(rl_ring_t *r, int gap, int t)
         r->since = t;
 }
 
+// the oldest record leaves the ring (older than RL_WINDOW, or a full ring); a change point becomes the anchor (D1a)
+static void drop_oldest(rl_ring_t *r)
+{
+    const rl_rec_t *e = rec(r, r->count - 1);
+
+    if (e->moved)
+        r->anchor_moved = e->s, r->has_anchor_moved = true;
+    if (e->turned)
+        r->anchor_turned = e->s, r->has_anchor_turned = true;
+    r->count--;
+}
+
 void RL_Push(rl_ring_t *r, const rl_snap_t *s, float jump)
 {
     if (r->count) {
@@ -88,24 +100,25 @@ void RL_Push(rl_ring_t *r, const rl_snap_t *s, float jump)
     if (e.turned)
         r->turned = *s, r->has_turned = true;
 
+    if (r->count == RL_RING)
+        drop_oldest(r);
     r->head = (r->head + 1) % RL_RING;
     r->rec[r->head] = e;
-    if (r->count < RL_RING)
-        r->count++;
+    r->count++;
     while (r->count > 3 && rec(r, r->count - 1)->s.t < s->t - RL_WINDOW)
-        r->count--;
+        drop_oldest(r);
 }
 
 float RL_Advance(rl_ring_t *r, int dt, int I)
 {
     float target = clamp_delay(r->D, I) - I, step = 0.1f * dt, d = target - r->extra;
 
-    // within one step: exactly the target, so a decayed extra is 0 and the path goes off
+    // within one step: exactly the target, so a decayed extra is 0
     r->extra = fabsf(d) <= step ? target : r->extra + (d > 0 ? step : -step);
     return r->extra;
 }
 
-// k0: the last change point <= t (the kept one once the window has passed it), k1: the first one > t
+// k0: the last change point <= t (the anchor once the ring holds none), k1: the first one > t
 static void points(const rl_ring_t *r, float t, bool ang, const rl_snap_t **k0, const rl_snap_t **k1)
 {
     *k0 = *k1 = NULL;
@@ -120,9 +133,9 @@ static void points(const rl_ring_t *r, float t, bool ang, const rl_snap_t **k0, 
             return;
         }
     }
-    const rl_snap_t *kept = ang ? &r->turned : &r->moved;
-    if ((ang ? r->has_turned : r->has_moved) && kept->t <= t)
-        *k0 = kept;
+    const rl_snap_t *anchor = ang ? &r->anchor_turned : &r->anchor_moved;
+    if ((ang ? r->has_anchor_turned : r->has_anchor_moved) && anchor->t <= t)
+        *k0 = anchor;
 }
 
 // transition k0 -> k1 over [a, b] = [max(k0.t, k1.t - D), k1.t]; none after the last point
@@ -187,11 +200,13 @@ bool RL_At(const rl_ring_t *r, float t, float D, rl_out_t *o)
 
 bool RL_Sample(rl_ring_t *r, int cltime, int I, rl_out_t *o)
 {
-    float t = cltime - r->extra;
+    // shift S: the reserve I plus extra; window S + I: an on-time k1 arrives at t = k1.t - W, so its transition
+    // starts at the arrival, not before it (no partial step on the first frame)
+    float S = fminf(r->extra + I, I + RL_MAX_EXTRA), t = cltime - S;
 
     if (r->has_shown && t < r->shown)
         t = r->shown;
-    if (!RL_At(r, t, clamp_delay(r->D, I), o))
+    if (!RL_At(r, t, S + I, o))
         return false;
     r->shown = t;
     r->has_shown = true;
@@ -205,7 +220,8 @@ int RL_Interval(bool exact, int rate, int legacy)
 
 static bool path_on(const rl_cond_t *c, float extra)
 {
-    return c->enabled && !c->demo && c->div > 1 && !c->nolerp && extra > 0;
+    (void)extra;    // the gate does not depend on the adjustable delay
+    return c->enabled && !c->demo && c->div > 1 && !c->nolerp;
 }
 
 bool RL_EntityOn(const rl_cond_t *c, int entnum, int maxclients, int frame_clientnum, float extra)

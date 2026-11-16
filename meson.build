@@ -51,7 +51,6 @@ client_src = [
   'src/client/precache.c',
   'src/client/predict.c',
   'src/client/refresh.c',
-  'src/client/remote_lerp.c',
   'src/client/screen.c',
   'src/client/sound/main.c',
   'src/client/sound/mem.c',
@@ -68,6 +67,10 @@ client_src = [
   'src/server/world.c',
   'src/shared/m_flash.c',
 ]
+# Remote player history needs variable server FPS.
+if get_option('variable-fps')
+  client_src += 'src/client/remote_lerp.c'
+endif
 
 ui_src = [
   'src/client/ui/demos.c',

@@ -1,6 +1,8 @@
 /* Remote player smoothing without engine dependencies:
    per-player history of snapshots, delay D from the observed interval between position changes,
-   the drawn state at t = cl.time - extra. Times are ms of the client timeline (cl.servertime labels). */
+   the drawn state at t = cl.time - S with the shift S = min(extra + I, I + RL_MAX_EXTRA): one snapshot interval I of
+   reserve plus the adjustable extra . Times are ms of the client timeline
+   (cl.servertime labels). */
 
 #pragma once
 
@@ -33,11 +35,12 @@ typedef struct {
 typedef struct {
     rl_rec_t rec[RL_RING];
     int head, count;            // rec[head] is the newest
-    rl_snap_t moved, turned;    // last change point of position / angles: k0 once the window has passed it
-    bool has_moved, has_turned;
+    rl_snap_t moved, turned;    // last change point of position / angles: the change interval (add_gap)
+    rl_snap_t anchor_moved, anchor_turned;  // last change point dropped from the ring: k0 while the ring has none <= t
+    bool has_moved, has_turned, has_anchor_moved, has_anchor_turned;
     int gap[RL_GAPS], gap_t[RL_GAPS], ngaps, gap_head;
     int D, since;               // accepted delay (0: none yet); since: the percentile differs from D since then
-    float extra, shown;         // added delay; t drawn in the last frame of this history
+    float extra, shown;         // adjustable delay beyond the reserve I; t drawn in the last frame of this history
     bool has_shown;
 } rl_ring_t;
 
@@ -49,7 +52,8 @@ typedef struct {
 } rl_out_t;
 
 void RL_Reset(rl_ring_t *r);
-// a snapshot; jump: a move along any axis longer than this restarts the history (512 entity, 256 chase camera)
+// a snapshot; jump: a move along any axis longer than this restarts the history (512 entity, 256 chase camera);
+// a change point dropped from the ring (older than RL_WINDOW, or a full ring) becomes anchor_moved / anchor_turned (D1a)
 void RL_Push(rl_ring_t *r, const rl_snap_t *s, float jump);
 // once per drawn frame: dt = growth of cl.time since the last frame (0 while paused or clamped),
 // I = snapshot interval (RL_Interval); moves extra toward D - I by at most dt / 10, returns extra
@@ -57,13 +61,15 @@ float RL_Advance(rl_ring_t *r, int dt, int I);
 // position and angles at t with delay D, each between its own change points; animation: frame of the last
 // record <= t, oldframe -> frame over RL_ANIM from the record before that frame's run; false: empty ring
 bool RL_At(const rl_ring_t *r, float t, float D, rl_out_t *out);
-// the drawn state at t = cltime - extra, never before the t of the last call (D clamped to [I, I + RL_MAX_EXTRA])
+// the drawn state at t = cltime - S, never before the t of the last call; the window S + I, at most
+// 2 I + RL_MAX_EXTRA (extra follows D clamped to [I, I + RL_MAX_EXTRA])
 bool RL_Sample(rl_ring_t *r, int cltime, int I, rl_out_t *out);
 
 // snapshot interval: on the exact timeline the largest Com_FrameTime step, ceil(1000 / rate); else legacy
 int RL_Interval(bool exact, int rate, int legacy);
 
-// path conditions: cl_remote_lerp 1, not a demo, frametime.div > 1, cl_nolerp 0, extra > 0
+// path conditions (design 2): cl_remote_lerp 1, not a demo, frametime.div > 1, cl_nolerp 0; the same for an entity
+// and the chase camera, at any extra (the reserve applies to an even sender too)
 typedef struct {
     bool enabled, demo;
     int div, nolerp;

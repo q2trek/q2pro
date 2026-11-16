@@ -58,10 +58,15 @@ it stops on pause and never runs past the newest snapshot. These paths apply
 to live variable-FPS play above 10 Hz; demo playback keeps its existing path.
 
 `cl_maxpackets` defaults to 0 here (upstream 30), so the client sends a packet
-every client frame. With 30 it sends only every third frame at the default
-`cl_maxfps` 62, about 21 packets per second, and a 60 Hz server runs two of
-every three frames of that player without a new command: others see the
-player move in steps. `cl_maxfps` stays 62. The native client keeps its frame
+every client frame. With a limit N over the Q2PRO protocol, a new command
+waits until about 1000/N ms have passed since the last packet (33 ms for 30).
+With the default `cl_async 1` the client checks this on every pass of its main
+loop, which `cl_maxfps` doesn't limit, so 30 gives about 30 packets per
+second. With `cl_async 0` it checks once per client frame, so 30 at the
+default `cl_maxfps` 62 sends every third 16 ms frame, about 21 per second. A
+60 Hz server then runs about half (with `cl_async 0`, two of every three) of
+that player's frames without a new command: others see the player move in
+steps. `cl_maxfps` stays 62. The native client keeps its frame
 period, and 62 already sends more than one packet per 60 Hz server frame.
 
 The tests for these commits, at every rate from 10 to 60 Hz, are in

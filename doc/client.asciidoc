@@ -45,8 +45,10 @@ cl_maxpackets::
     are sent in sync with client physics frame rate, controlled with
     ‘cl_maxfps’ variable. Default value is 0. With a limit below the server
     frame rate, some server frames get no new movement command and other
-    players see this one move in steps (30 sends about 21 packets per second
-    at the default ‘cl_maxfps’ 62, a third of a 60 Hz server's frames).
+    players see this one move in steps. With ‘cl_async’ 1 the limit is
+    checked on every main loop pass, so 30 sends about 30 packets per second,
+    half of a 60 Hz server's frames. With ‘cl_async’ 0 it is checked once per
+    client frame, so 30 at the default ‘cl_maxfps’ 62 sends about 21, a third.
 
 cl_fuzzhack::
     Enables ‘cl_maxpackets’ limit even if Q2PRO protocol is not in use by

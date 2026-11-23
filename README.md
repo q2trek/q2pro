@@ -48,8 +48,9 @@ The server estimates a hitscan command's display time from admitted
 snapshots and exposes it to game modules through `UNLAG_API_V1`, obtained
 via `GetGameAPIEx` from a dynamically loaded module.
 
-An empty new command group preserves the last command when the packet
-only contains unused backups.
+An empty new command group still saves the last backup for replay. Its
+first execution carries no shot-time estimate if the original packet
+did not execute it.
 
 A selected backup command rejected by the time budget is saved for
 future repeats.

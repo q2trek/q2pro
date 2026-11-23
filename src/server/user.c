@@ -1360,15 +1360,14 @@ static void SV_NewClientExecuteMove(int c)
     if (q_unlikely(!lastcmd)) {
         return; // should never happen
     }
-    lastcmd = NULL;
 
+    const usercmd_t *last_executed = NULL;
     unsigned batch = 0;
     net_drop = sv_client->netchan.dropped;
     if (net_drop > numDups) {
         sv_client->frameflags |= FF_CLIENTPRED;
     }
 
-    bool lastcmd_seen = false;
     if (net_drop < 20) {
         // run lastcmd multiple times if no backups available
         while (net_drop > numDups) {
@@ -1380,9 +1379,11 @@ static void SV_NewClientExecuteMove(int c)
         while (net_drop > 0) {
             i = numDups - net_drop;
             for (j = 0; j < numCmds[i]; j++) {
-                lastcmd = &cmds[i][j];
-                lastcmd_seen = SV_RunClientThink(lastcmd, context);
-                batch += lastcmd_seen;
+                cmd = &cmds[i][j];
+                if (SV_RunClientThink(cmd, context)) {
+                    last_executed = cmd;
+                    batch++;
+                }
             }
             net_drop--;
         }
@@ -1391,16 +1392,16 @@ static void SV_NewClientExecuteMove(int c)
 
     // run new cmds
     for (j = 0; j < numCmds[numDups]; j++) {
-        lastcmd = &cmds[numDups][j];
-        lastcmd_seen = SV_RunClientThink(lastcmd, context);
-        batch += lastcmd_seen;
+        cmd = &cmds[numDups][j];
+        if (SV_RunClientThink(cmd, context)) {
+            last_executed = cmd;
+            batch++;
+        }
     }
 
     sv_client->pacing.window.batch = max(sv_client->pacing.window.batch, batch);
-    if (lastcmd) {
-        sv_client->lastcmd = *lastcmd;
-        sv_client->lastcmd_unseen = !lastcmd_seen;
-    }
+    sv_client->lastcmd = *lastcmd;
+    sv_client->lastcmd_unseen = last_executed != lastcmd;
 }
 
 /*

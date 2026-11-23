@@ -48,6 +48,9 @@ The server estimates a hitscan command's display time from admitted
 snapshots and exposes it to game modules through `UNLAG_API_V1`, obtained
 via `GetGameAPIEx` from a dynamically loaded module.
 
+An empty new command group preserves the last command when the packet
+only contains unused backups.
+
 The client draws other players a short delay behind the newest frame, from a
 history of their positions (`cl_remote_lerp`, on by default, needs
 `variable-fps`). A frame that comes late, or a server frame in which a player

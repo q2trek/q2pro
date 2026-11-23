@@ -1360,6 +1360,7 @@ static void SV_NewClientExecuteMove(int c)
     if (q_unlikely(!lastcmd)) {
         return; // should never happen
     }
+    lastcmd = NULL;
 
     unsigned batch = 0;
     net_drop = sv_client->netchan.dropped;
@@ -1381,8 +1382,10 @@ static void SV_NewClientExecuteMove(int c)
             for (j = 0; j < numCmds[i]; j++) {
                 bool executed = SV_RunClientThink(&cmds[i][j], context);
                 batch += executed;
-                if (&cmds[i][j] == lastcmd)
-                    lastcmd_seen = executed;
+                if (executed) {
+                    lastcmd = &cmds[i][j];
+                    lastcmd_seen = true;
+                }
             }
             net_drop--;
         }
@@ -1391,13 +1394,16 @@ static void SV_NewClientExecuteMove(int c)
 
     // run new cmds
     for (j = 0; j < numCmds[numDups]; j++) {
-        lastcmd_seen = SV_RunClientThink(&cmds[numDups][j], context);
+        lastcmd = &cmds[numDups][j];
+        lastcmd_seen = SV_RunClientThink(lastcmd, context);
         batch += lastcmd_seen;
     }
 
     sv_client->pacing.window.batch = max(sv_client->pacing.window.batch, batch);
-    sv_client->lastcmd = *lastcmd;
-    sv_client->lastcmd_unseen = !lastcmd_seen;
+    if (lastcmd) {
+        sv_client->lastcmd = *lastcmd;
+        sv_client->lastcmd_unseen = !lastcmd_seen;
+    }
 }
 
 /*

@@ -51,6 +51,9 @@ via `GetGameAPIEx` from a dynamically loaded module.
 An empty new command group preserves the last command when the packet
 only contains unused backups.
 
+A selected backup command rejected by the time budget is saved for
+future repeats.
+
 The client draws other players a short delay behind the newest frame, from a
 history of their positions (`cl_remote_lerp`, on by default, needs
 `variable-fps`). A frame that comes late, or a server frame in which a player

@@ -1380,12 +1380,9 @@ static void SV_NewClientExecuteMove(int c)
         while (net_drop > 0) {
             i = numDups - net_drop;
             for (j = 0; j < numCmds[i]; j++) {
-                bool executed = SV_RunClientThink(&cmds[i][j], context);
-                batch += executed;
-                if (executed) {
-                    lastcmd = &cmds[i][j];
-                    lastcmd_seen = true;
-                }
+                lastcmd = &cmds[i][j];
+                lastcmd_seen = SV_RunClientThink(lastcmd, context);
+                batch += lastcmd_seen;
             }
             net_drop--;
         }

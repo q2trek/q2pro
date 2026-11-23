@@ -875,6 +875,29 @@ static const debug_draw_api_v1_t debug_draw_api_v1 = {
 };
 #endif
 
+static int PF_UnlagWorldFrame(void)
+{
+    return sv.framenum;
+}
+
+static int PF_UnlagFrameRate(void)
+{
+    return SV_FRAMERATE;
+}
+
+static unlag_command_t PF_UnlagCommand(const edict_t *ent)
+{
+    if (ent && ent == sv.unlag_player)
+        return sv.unlag_command;
+    return (unlag_command_t){ UNLAG_OUTSIDE };
+}
+
+static const unlag_api_v1_t unlag_api_v1 = {
+    .WorldFrame = PF_UnlagWorldFrame,
+    .FrameRate = PF_UnlagFrameRate,
+    .Command = PF_UnlagCommand,
+};
+
 static void *PF_GetExtension(const char *name)
 {
     if (!name)
@@ -882,6 +905,9 @@ static void *PF_GetExtension(const char *name)
 
     if (!strcmp(name, FILESYSTEM_API_V1))
         return (void *)&filesystem_api_v1;
+
+    if (!strcmp(name, UNLAG_API_V1))
+        return (void *)&unlag_api_v1;
 
 #if USE_REF && USE_DEBUG
     if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer)

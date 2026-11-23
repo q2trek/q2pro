@@ -710,10 +710,28 @@ static void repack_unreliables(client_t *client, unsigned maxsize)
     }
 }
 
+static void transmit_datagram(client_t *client, bool has_frame)
+{
+    netchan_t *chan = &client->netchan;
+    unsigned sequence = chan->outgoing_sequence;
+    unsigned size = Netchan_Transmit(chan, msg_write.cursize, msg_write.data, client->numpackets);
+
+    // The send loop only builds a frame when no earlier fragments are pending.
+    // Account for a reliable prefix before marking the snapshot as admitted.
+    size_t reliable = chan->last_reliable_sequence == sequence ? chan->reliable_length : 0;
+    size_t capacity = chan->type == NETCHAN_NEW ? chan->fragment_out.maxsize : MAX_PACKETLEN - 8;
+    if (has_frame && size && msg_write.cursize + reliable <= capacity) {
+        client_frame_t *frame = &client->frames[client->framenum & UPDATE_MASK];
+        frame->unlag.sent = true;
+    }
+    SV_CalcSendTime(client, size);
+    SZ_Clear(&msg_write);
+}
+
 static void write_datagram_old(client_t *client)
 {
     message_packet_t *msg;
-    unsigned maxsize, cursize;
+    unsigned maxsize;
     bool ret;
 
     // determine how much space is left for unreliable data
@@ -767,17 +785,7 @@ static void write_datagram_old(client_t *client)
 
     Q_assert(!msg_write.overflowed);
 
-    // send the datagram
-    cursize = Netchan_Transmit(&client->netchan,
-                               msg_write.cursize,
-                               msg_write.data,
-                               client->numpackets);
-
-    // record the size for rate estimation
-    SV_CalcSendTime(client, cursize);
-
-    // clear the write buffer
-    SZ_Clear(&msg_write);
+    transmit_datagram(client, ret);
 }
 
 /*
@@ -802,11 +810,10 @@ static void add_message_new(client_t *client, const byte *data,
 
 static void write_datagram_new(client_t *client)
 {
-    int cursize;
-
     // send over all the relevant entity_state_t
     // and the player_state_t
-    if (!SV_WriteFrameToClient_Enhanced(client, msg_write.maxsize)) {
+    bool has_frame = SV_WriteFrameToClient_Enhanced(client, msg_write.maxsize);
+    if (!has_frame) {
         // should never really happen
         Com_WPrintf("Frame overflowed for %s\n", client->name);
         SZ_Clear(&msg_write);
@@ -833,17 +840,7 @@ static void write_datagram_new(client_t *client)
 
     Q_assert(!msg_write.overflowed);
 
-    // send the datagram
-    cursize = Netchan_Transmit(&client->netchan,
-                               msg_write.cursize,
-                               msg_write.data,
-                               client->numpackets);
-
-    // record the size for rate estimation
-    SV_CalcSendTime(client, cursize);
-
-    // clear the write buffer
-    SZ_Clear(&msg_write);
+    transmit_datagram(client, has_frame);
 }
 
 

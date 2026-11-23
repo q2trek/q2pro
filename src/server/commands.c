@@ -521,21 +521,23 @@ static void SV_Kick_f(void)
     sv_player = NULL;
 }
 
-// `status n`: rates of the last full 10 s window (counts / 10), no addresses
+// `status n`: rates and completed maxima from the last full 10 s window
 static void dump_pacing(void)
 {
     client_t    *client;
 
     Com_Printf(
-        "num name              pps  cmds   dup   rej held%%\n"
-        "--- --------------- ----- ----- ----- ----- -----\n");
+        "num name              pps  cmds   dup   rej held%%  gapms heldfrm batch\n"
+        "--- --------------- ----- ----- ----- ----- ----- ------ ------- -----\n");
 
     FOR_EACH_CLIENT(client) {
         const int *p = client->pace_shown;
+        const pace_max_t *maxima = &client->pacing.shown;
 
-        Com_Printf("%3i %-15.15s %5.1f %5.1f %5.1f %5.1f %4i%%\n", client->number, client->name,
+        Com_Printf("%3i %-15.15s %5.1f %5.1f %5.1f %5.1f %4i%% %6u %7u %5u\n", client->number, client->name,
                    p[PACE_PACKETS] * 0.1, p[PACE_CMDS] * 0.1, p[PACE_DUPS] * 0.1, p[PACE_REJECTS] * 0.1,
-                   p[PACE_FRAMES] ? p[PACE_HELD] * 100 / p[PACE_FRAMES] : 0);
+                   p[PACE_FRAMES] ? p[PACE_HELD] * 100 / p[PACE_FRAMES] : 0,
+                   maxima->gap_ms, maxima->held_frames, maxima->batch);
     }
 
     Com_Printf("\nrecommended client packet rate: >= %d\n", SV_FRAMERATE);

@@ -42,6 +42,12 @@ movement: packets, commands, duplicate and rejected commands per second over
 the last 10 s, and held%, the share of server frames in which the player has
 velocity but doesn't move. Other players see those frames as stops.
 
+`status n` includes the longest packet gap, completed run of held world
+frames, and number of new commands in a packet from the last full window.
+The server estimates a hitscan command's display time from admitted
+snapshots and exposes it to game modules through `UNLAG_API_V1`, obtained
+via `GetGameAPIEx` from a dynamically loaded module.
+
 The client draws other players a short delay behind the newest frame, from a
 history of their positions (`cl_remote_lerp`, on by default, needs
 `variable-fps`). A frame that comes late, or a server frame in which a player

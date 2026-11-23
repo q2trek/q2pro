@@ -566,6 +566,15 @@ void SV_BuildClientFrame(client_t *client)
     frame->number = client->framenum;
     frame->sentTime = com_eventTime; // save it for ping calc later
     frame->latency = -1; // not yet acked
+    frame->unlag.epoch = svs.unlag_epoch;
+    frame->unlag.world = sv.framenum;
+#if USE_FPS
+    frame->unlag.div = client->framediv;
+#else
+    frame->unlag.div = 1;
+#endif
+    frame->unlag.first_ack = -1;
+    frame->unlag.sent = false;
 
     client->frames_sent++;
 

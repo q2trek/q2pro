@@ -31,11 +31,16 @@ void SV_ClientReset(client_t *client)
     client->state = cs_connected;
     client->framenum = 1; // frame 0 can't be used
     client->lastframe = -1;
+    client->unlag_last_ack = 0;
+    for (int i = 0; i < UPDATE_BACKUP; i++)
+        client->frames[i].unlag.sent = false;
     client->frames_nodelta = 0;
     client->send_delta = 0;
     client->suppress_count = 0;
     client->next_entity = 0;
     memset(&client->lastcmd, 0, sizeof(client->lastcmd));
+    memset(&client->pacing, 0, sizeof(client->pacing));
+    client->lastcmd_unseen = false;
 }
 
 static void set_frame_time(void)
@@ -129,6 +134,7 @@ void SV_SpawnServer(const mapcmd_t *cmd)
 
     // wipe the entire per-level structure
     memset(&sv, 0, sizeof(sv));
+    svs.unlag_epoch++;
     sv.spawncount = Q_rand() & INT_MAX;
 
     // set legacy spawncounts

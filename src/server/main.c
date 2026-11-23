@@ -1424,9 +1424,16 @@ static void SV_CalcPings(void)
             vec3_t org;
 
             cl->pace[PACE_FRAMES]++;
-            if (SV_GetClient_Pmove(cl, org) && VectorCompare(org, cl->pace_origin))
+            if (SV_GetClient_Pmove(cl, org) && VectorCompare(org, cl->pace_origin)) {
                 cl->pace[PACE_HELD]++;
+                if (cl->pacing.have_origin)
+                    cl->pacing.held_run++;
+            } else {
+                cl->pacing.window.held_frames = max(cl->pacing.window.held_frames, cl->pacing.held_run);
+                cl->pacing.held_run = 0;
+            }
             VectorCopy(org, cl->pace_origin);
+            cl->pacing.have_origin = true;
 
             cl->ping = calc(cl);
             if (cl->ping) {
@@ -1445,6 +1452,8 @@ static void SV_CalcPings(void)
                 cl->num_moves = 0;
                 memcpy(cl->pace_shown, cl->pace, sizeof(cl->pace));
                 memset(cl->pace, 0, sizeof(cl->pace));
+                cl->pacing.shown = cl->pacing.window;
+                cl->pacing.window = (pace_max_t){0};
             }
         } else {
             cl->ping = 0;
@@ -1452,6 +1461,7 @@ static void SV_CalcPings(void)
             cl->num_moves = 0;
             memset(cl->pace, 0, sizeof(cl->pace));
             memset(cl->pace_shown, 0, sizeof(cl->pace_shown));
+            memset(&cl->pacing, 0, sizeof(cl->pacing));
         }
 
         // let the game dll know about the ping
@@ -1572,6 +1582,15 @@ static void SV_PacketEvent(void)
         // this is a valid, sequenced packet, so process it
         client->lastmessage = svs.realtime;    // don't timeout
         client->pace[PACE_PACKETS]++;
+        if (client->state == cs_spawned) {
+            // com_eventTime is sampled before the frame delta is clamped.
+            if (client->pacing.have_packet) {
+                unsigned gap = com_eventTime - client->pacing.last_packet_ms;
+                client->pacing.window.gap_ms = max(client->pacing.window.gap_ms, gap);
+            }
+            client->pacing.last_packet_ms = com_eventTime;
+            client->pacing.have_packet = true;
+        }
 #if USE_ICMP
         client->unreachable = false; // don't drop
 #endif

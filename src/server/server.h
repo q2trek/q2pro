@@ -23,6 +23,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "shared/list.h"
 #include "shared/game.h"
 #include "shared/gameext.h"
+#include "shared/unlag.h"
 
 #include "common/bsp.h"
 #include "common/cmd.h"
@@ -113,6 +114,13 @@ typedef struct {
     byte        areabits[MAX_MAP_AREA_BYTES];  // portalarea visibility bits
     unsigned    sentTime;                   // for ping calculations
     int         latency;
+    struct {
+        unsigned epoch;
+        int world;
+        int div;
+        int first_ack;
+        bool sent;
+    } unlag;
 } client_frame_t;
 
 typedef struct {
@@ -159,6 +167,8 @@ typedef struct {
 
     int         framenum;
     uint64_t    framecredit;    // elapsed ms * SV_FRAMERATE not yet stepped (utils.h)
+    const edict_t *unlag_player;
+    unlag_command_t unlag_command;
 
     char        mapcmd[MAX_QPATH];          // ie: *intro.cin+base
 
@@ -267,6 +277,12 @@ typedef enum {
     PACE_MAX
 } pace_t;
 
+typedef struct {
+    unsigned gap_ms;
+    unsigned held_frames;
+    unsigned batch;
+} pace_max_t;
+
 typedef struct client_s {
     list_t          entry;
 
@@ -303,6 +319,8 @@ typedef struct client_s {
     unsigned        lastactivity;   // svs.realtime when user activity was last seen
     int             lastframe;      // for delta compression
     usercmd_t       lastcmd;        // for filling in big drops
+    int             unlag_last_ack;
+    bool            lastcmd_unseen; // lastcmd was stored but not yet executed
     int             command_msec;   // every seconds this is reset, if user
                                     // commands exhaust it, assume time cheating
     int             num_moves;      // reset every 10 seconds
@@ -311,6 +329,13 @@ typedef struct client_s {
     int             pace[PACE_MAX];         // running window
     int             pace_shown[PACE_MAX];   // last full window
     vec3_t          pace_origin;
+    struct {
+        pace_max_t  window, shown;
+        unsigned    last_packet_ms;
+        unsigned    held_run;
+        bool        have_packet;
+        bool        have_origin;
+    } pacing;
     float           timescale;
 
     int             ping, min_ping, max_ping;
@@ -478,6 +503,7 @@ typedef struct {
 typedef struct {
     bool        initialized;        // sv_init has completed
     unsigned    realtime;           // always increasing, no clamping, etc
+    unsigned    unlag_epoch;
 
     int         maxclients_soft;    // minus reserved slots
     int         maxclients;

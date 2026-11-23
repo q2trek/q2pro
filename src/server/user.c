@@ -1121,7 +1121,7 @@ static int      userinfoUpdateCount;
 SV_ClientThink
 ==================
 */
-static inline void SV_ClientThink(usercmd_t *cmd)
+static bool SV_RunClientThink(usercmd_t *cmd, unlag_command_t context)
 {
     usercmd_t *old = &sv_client->lastcmd;
 
@@ -1133,7 +1133,7 @@ static inline void SV_ClientThink(usercmd_t *cmd)
         Com_DPrintf("commandMsec underflow from %s: %d\n",
                     sv_client->name, sv_client->command_msec);
         sv_client->pace[PACE_REJECTS]++;
-        return;
+        return false;
     }
     sv_client->pace[cmd == &sv_client->lastcmd ? PACE_DUPS : PACE_CMDS]++;
 
@@ -1145,7 +1145,23 @@ static inline void SV_ClientThink(usercmd_t *cmd)
         sv_client->lastactivity = svs.realtime;
     }
 
+    const edict_t *saved_player = sv.unlag_player;
+    unlag_command_t saved_command = sv.unlag_command;
+    sv.unlag_player = sv_player;
+    sv.unlag_command = context;
     ge->ClientThink(sv_player, cmd);
+    sv.unlag_player = saved_player;
+    sv.unlag_command = saved_command;
+    return true;
+}
+
+static void SV_RepeatLastCmd(void)
+{
+    unlag_command_t context = {
+        sv_client->lastcmd_unseen ? UNLAG_NO_ESTIMATE : UNLAG_REPEAT,
+    };
+    if (SV_RunClientThink(&sv_client->lastcmd, context))
+        sv_client->lastcmd_unseen = false;
 }
 
 static void SV_SetLastFrame(int lastframe)
@@ -1174,6 +1190,29 @@ static void SV_SetLastFrame(int lastframe)
     }
 
     sv_client->lastframe = lastframe;
+}
+
+static unlag_command_t SV_UnlagEstimate(int ack)
+{
+    const unlag_command_t missing = { UNLAG_NO_ESTIMATE };
+    if (msg_read.readcount > msg_read.cursize ||
+        ack <= 0 || ack < sv_client->unlag_last_ack || ack >= sv_client->framenum ||
+        sv_client->framenum - ack > UPDATE_BACKUP)
+        return missing;
+
+    client_frame_t *frame = &sv_client->frames[ack & UPDATE_MASK];
+    if (frame->number != ack || frame->unlag.epoch != svs.unlag_epoch || !frame->unlag.sent)
+        return missing;
+
+    sv_client->unlag_last_ack = ack;
+    if (frame->unlag.first_ack < 0)
+        frame->unlag.first_ack = sv.framenum;
+
+    int elapsed = sv.framenum - frame->unlag.first_ack;
+    return (unlag_command_t){
+        UNLAG_ESTIMATE,
+        frame->unlag.world - frame->unlag.div + min(frame->unlag.div, elapsed),
+    };
 }
 
 /*
@@ -1218,7 +1257,9 @@ static void SV_OldClientExecuteMove(void)
     }
 
     SV_SetLastFrame(lastframe);
+    unlag_command_t context = SV_UnlagEstimate(lastframe);
 
+    unsigned batch = 0;
     net_drop = sv_client->netchan.dropped;
     if (net_drop > 2) {
         sv_client->frameflags |= FF_CLIENTPRED;
@@ -1227,19 +1268,22 @@ static void SV_OldClientExecuteMove(void)
     if (net_drop < 20) {
         // run lastcmd multiple times if no backups available
         while (net_drop > 2) {
-            SV_ClientThink(&sv_client->lastcmd);
+            SV_RepeatLastCmd();
             net_drop--;
         }
 
         // run backup cmds
         if (net_drop > 1)
-            SV_ClientThink(&oldest);
+            batch += SV_RunClientThink(&oldest, context);
         if (net_drop > 0)
-            SV_ClientThink(&oldcmd);
+            batch += SV_RunClientThink(&oldcmd, context);
     }
 
     // run new cmd
-    SV_ClientThink(&newcmd);
+    bool executed = SV_RunClientThink(&newcmd, context);
+    batch += executed;
+    sv_client->lastcmd_unseen = !executed;
+    sv_client->pacing.window.batch = max(sv_client->pacing.window.batch, batch);
 
     sv_client->lastcmd = newcmd;
 }
@@ -1311,20 +1355,23 @@ static void SV_NewClientExecuteMove(int c)
     }
 
     SV_SetLastFrame(lastframe);
+    unlag_command_t context = SV_UnlagEstimate(lastframe);
 
     if (q_unlikely(!lastcmd)) {
         return; // should never happen
     }
 
+    unsigned batch = 0;
     net_drop = sv_client->netchan.dropped;
     if (net_drop > numDups) {
         sv_client->frameflags |= FF_CLIENTPRED;
     }
 
+    bool lastcmd_seen = false;
     if (net_drop < 20) {
         // run lastcmd multiple times if no backups available
         while (net_drop > numDups) {
-            SV_ClientThink(&sv_client->lastcmd);
+            SV_RepeatLastCmd();
             net_drop--;
         }
 
@@ -1332,7 +1379,10 @@ static void SV_NewClientExecuteMove(int c)
         while (net_drop > 0) {
             i = numDups - net_drop;
             for (j = 0; j < numCmds[i]; j++) {
-                SV_ClientThink(&cmds[i][j]);
+                bool executed = SV_RunClientThink(&cmds[i][j], context);
+                batch += executed;
+                if (&cmds[i][j] == lastcmd)
+                    lastcmd_seen = executed;
             }
             net_drop--;
         }
@@ -1341,10 +1391,13 @@ static void SV_NewClientExecuteMove(int c)
 
     // run new cmds
     for (j = 0; j < numCmds[numDups]; j++) {
-        SV_ClientThink(&cmds[numDups][j]);
+        lastcmd_seen = SV_RunClientThink(&cmds[numDups][j], context);
+        batch += lastcmd_seen;
     }
 
+    sv_client->pacing.window.batch = max(sv_client->pacing.window.batch, batch);
     sv_client->lastcmd = *lastcmd;
+    sv_client->lastcmd_unseen = !lastcmd_seen;
 }
 
 /*

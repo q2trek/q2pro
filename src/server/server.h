@@ -810,6 +810,7 @@ bool SV_WriteFrameToClient_Enhanced(client_t *client, unsigned maxsize);
 //
 extern const game_export_t      *ge;
 extern const game_export_ex_t   *gex;
+extern bool                     sv_game_requested_framediv;
 
 void SV_InitGameProgs(void);
 void SV_ShutdownGameProgs(void);

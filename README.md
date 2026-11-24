@@ -55,6 +55,13 @@ did not execute it.
 A selected backup command rejected by the time budget is saved for
 future repeats.
 
+Dynamically loaded games can request `OPENTDM60_FRAMEDIV_V1` through
+`GetGameAPIEx` to get a recipient's world frames per snapshot. The server
+preserves the customized projectile state for fast recipients and keeps
+the normal origin history for other entities. The native tests decode
+snapshots and recordings. Live multiplayer and browser rendering were
+outside these checks.
+
 The client draws other players a short delay behind the newest frame, from a
 history of their positions (`cl_remote_lerp`, on by default, needs
 `variable-fps`). A frame that comes late, or a server frame in which a player

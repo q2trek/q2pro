@@ -726,7 +726,15 @@ void SV_BuildClientFrame(client_t *client)
         state = &client->entities[client->next_entity & (client->num_entities - 1)];
 
         // optionally customize it
-        if (customize && customize(clent, ent, &temp)) {
+        bool customized = false;
+        if (customize) {
+#if USE_PROTOCOL_EXTENSIONS
+            memset(&temp.x, 0, sizeof(temp.x));
+#endif
+            customized = customize(clent, ent, &temp);
+        }
+
+        if (customized) {
             Q_assert(temp.s.number == e);
             MSG_PackEntity(state, &temp.s, ENT_EXTENSION(client->csr, &temp));
         } else {
@@ -735,8 +743,8 @@ void SV_BuildClientFrame(client_t *client)
 
 #if USE_FPS
         // fix old entity origins for clients not running at
-        // full server frame rate
-        if (client->framediv != 1)
+        // full server frame rate, unless the game provides the presentation
+        if (client->framediv != 1 && !(customized && sv_game_requested_framediv))
             fix_old_origin(client, state, ent, e);
 #endif
 

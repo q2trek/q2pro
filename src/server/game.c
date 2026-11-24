@@ -18,9 +18,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // sv_game.c -- interface to the game dll
 
 #include "server.h"
+#include "shared/framediv.h"
 
 const game_export_t     *ge;
 const game_export_ex_t  *gex;
+bool                    sv_game_requested_framediv;
 
 static void PF_configstring(int index, const char *val);
 
@@ -898,6 +900,30 @@ static const unlag_api_v1_t unlag_api_v1 = {
     .Command = PF_UnlagCommand,
 };
 
+static int PF_ClientFrameDiv(edict_t *ent)
+{
+    if (!ent || !ge || !ge->edicts || !ge->edict_size || !svs.client_pool)
+        return 0;
+
+    int n = NUM_FOR_EDICT(ent);
+    if (n < 1 || n > svs.maxclients)
+        return 0;
+
+    const client_t *client = &svs.client_pool[n - 1];
+    if (client->state != cs_spawned || client->edict != ent)
+        return 0;
+
+#if USE_FPS
+    return client->framediv;
+#else
+    return 1;
+#endif
+}
+
+static const opentdm60_framediv_v1_t opentdm60_framediv_v1 = {
+    .ClientFrameDiv = PF_ClientFrameDiv,
+};
+
 static void *PF_GetExtension(const char *name)
 {
     if (!name)
@@ -908,6 +934,11 @@ static void *PF_GetExtension(const char *name)
 
     if (!strcmp(name, UNLAG_API_V1))
         return (void *)&unlag_api_v1;
+
+    if (!strcmp(name, OPENTDM60_FRAMEDIV_V1)) {
+        sv_game_requested_framediv = true;
+        return (void *)&opentdm60_framediv_v1;
+    }
 
 #if USE_REF && USE_DEBUG
     if (!strcmp(name, DEBUG_DRAW_API_V1) && !dedicated->integer)
@@ -951,6 +982,7 @@ void SV_ShutdownGameProgs(void)
         Sys_FreeLibrary(game_library);
         game_library = NULL;
     }
+    sv_game_requested_framediv = false;
     Cvar_Set("g_features", "0");
 
     Z_LeakTest(TAG_FREE);
